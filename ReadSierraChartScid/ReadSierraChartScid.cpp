@@ -24,8 +24,10 @@ T f(T a, T b) {
 int main()
 {
 	const string datafile_dir{ "C:/SierraChart/Data/" };
+	const string datafile_outdir{ "C:/Users/lel48/SierraChartData/" };
 	const string datafile_fn{ "ESU21-CME.scid" };
 	const string datafile_fullfn = datafile_dir + datafile_fn;
+	const string datafile_fulloutfn = datafile_outdir + datafile_fn;
 
 	static_assert(sizeof(s_IntradayRecord) % sizeof(double) == 0, "s_IntradayRecord must be double aligned");
 
@@ -50,7 +52,7 @@ int main()
 	}
 	size -= sizeof(header);
 
-	// read SierraChart scid records
+	// read all SierraChart scid records for given contract
 	if (size % sizeof(s_IntradayRecord) != 0) {
 		// do not have even # of records
 		cout << "Do not have even # of records: Space for records:" << size << endl;
@@ -70,15 +72,35 @@ int main()
 	}
 #endif
 
-	// find first element on 9 June 6pm (18)
+	// remove unneeded data at beginning and end of scid dataset.
+	// I only want data from the 9th of the first month 3 months prior to the settlement month
+	// So, for instance, for the 'U' contract, which settles in September, I only want data from June 9th at 6pm EST
+	//  unitl September 9th, right before 6pm EST. Note: 6pm EST is 2200 UTC
+
+	// find first element on or after  start date/time: 9 June 2021 6pm (22:00:00 UTC or 6pm EST)
 	s_IntradayRecord abc;
-	static const SCDateTime xxx{ 2021, JUNE, 9, 22, 0, 0 };
-	auto iterator = ranges::find_if(records, [](auto r)->bool {return r.DateTime >= xxx;});
+	static const SCDateTime startDateTime{ 2021, JUNE, 9, 22, 0, 0 };
+	auto iterator = ranges::find_if(records, [](auto r)->bool {return r.DateTime >= startDateTime;});
+	if (iterator == end(records)) {
+		cout << "Could not find first record" << endl;
+		return -1;
+	}
 	auto num_elements_to_remove = std::distance(begin(records), iterator);
+
 	abc = *iterator;
 	int yy, mm, dd, hh, minute, sec;
 	abc.DateTime.GetDateTimeYMDHMS(yy, mm, dd, hh, minute, sec);
+
+	// remove all data before start date
 	records.erase(begin(records), iterator);
+
+	// find first element after end date/time: 9 Sep 2021 6pm
+	static const SCDateTime endDateTime{ 2021, SEPTEMBER, 9, 22, 0, 0 };
+	iterator = ranges::find_if(records, [](auto r)->bool {return r.DateTime >= endDateTime; });
+	if (iterator == end(records)) {
+	num_elements_to_remove = std::distance(iterator, end(records));
+	records.erase(iterator, end(records));
+
 	auto c = f(4, 5);
 	auto a = sizeof(s_IntradayFileHeader);
 	cout << "Hello CMake." << endl;
