@@ -5,6 +5,7 @@
 #include "SierraChartFiles/scdatetime.h"
 #pragma warning( default : 26812 26451 6201 6385 6386)
 
+#include <filesystem>
 #include <fstream>
 #include "ReadSierraChartScid.h"
 
@@ -14,95 +15,122 @@ using namespace std;
 template<typename T>
 concept Addable = requires(T a, T b)
 {
-	a + b;
+    a + b;
 };
 template<Addable T>
 T f(T a, T b) {
-	return a + b;
+    return a + b;
 }
 
 int main()
 {
-	const string datafile_dir{ "C:/SierraChart/Data/" };
-	const string datafile_outdir{ "C:/Users/lel48/SierraChartData/" };
-	const string datafile_fn{ "ESU21-CME.scid" };
-	const string datafile_fullfn = datafile_dir + datafile_fn;
-	const string datafile_fulloutfn = datafile_outdir + datafile_fn;
+    const string datafile_dir{ "C:/SierraChart/Data/" };
+    const string datafile_outdir{ "C:/Users/lel48/SierraChartData/" };
+    const string datafile_fn{ "ESU21-CME.scid" };
+    const string futures_root{ "ES" };
 
-	static_assert(sizeof(s_IntradayRecord) % sizeof(double) == 0, "s_IntradayRecord must be double aligned");
+    // get .scid files in datafile_dir
+    for (const filesystem::directory_entry& dir_entry : filesystem::directory_iterator(datafile_dir)) {
+        if (dir_entry.is_directory())
+            continue;
+        const filesystem::path path = dir_entry.path();
+        if (path.extension() != ".scid")
+            continue;
 
-	// open file and position 
-	ifstream datafile;
-	datafile.open(datafile_fullfn, ios::in | ios::binary | ios::ate);
-	if (!datafile.is_open()) {
-		cout << "Unable to open data file: " << datafile_fullfn << endl;
-		return -1;
-	}
+        // get start month, end month, start year, end year from futures file name
+        const string stem(path.stem().string());
+        if (!stem.starts_with(futures_root))
+            continue;
+        if (stem.length() != 5)
+            continue;
+        const char futures_code = stem[2];
+        if (!IsValidFuturesMonthCode(futures_code))
+            continue;
+        int start_month, start_year, end_year;
+        int end_month = GetMonthFromFuturesCode(futures_code);
+        start_year = end_year = 2000 + atoi(stem.c_str() + 3);
+        switch (futures_code) {
+        case 'H':
+            start_month = 12;
+            start_year = end_year - 1;
+            break;
+        case 'Z':
+            end_month = 3;
+            end_year++;
+            break;
+        }
 
-	// get file size
-	size_t size = datafile.tellg();
-	datafile.seekg(0, ios::beg); // reset pointer to beginning of file
+        // open file and position 
+        ifstream datafile;
+        datafile.open(path.filename().string(), ios::in | ios::binary | ios::ate);
+        if (!datafile.is_open()) {
+            cout << "Unable to open data file: " << path.filename() << endl;
+            return -1;
+        }
 
-	// read SierraChart scid file header
-	s_IntradayFileHeader header;
-	datafile.read((char*)&header, sizeof(header));
-	if (datafile.bad()) {
-		cout << "Unable to to read data file header: " << datafile_fullfn << endl;
-		return -1;
-	}
-	size -= sizeof(header);
+        // get file size
+        size_t size = datafile.tellg();
+        datafile.seekg(0, ios::beg); // reset pointer to beginning of file
 
-	// read all SierraChart scid records for given contract
-	if (size % sizeof(s_IntradayRecord) != 0) {
-		// do not have even # of records
-		cout << "Do not have even # of records: Space for records:" << size << endl;
-		return -1;
-	}
-	size_t num_recs = size / sizeof(s_IntradayRecord);
-	vector<s_IntradayRecord> records(num_recs);
-	datafile.read((char*)records.data(), size);
+        // read SierraChart scid file header
+        s_IntradayFileHeader header;
+        datafile.read((char*)&header, sizeof(header));
+        if (datafile.bad()) {
+            cout << "Unable to to read data file header: " << path.filename() << endl;
+            return -1;
+        }
+        size -= sizeof(header);
+
+        if (size % sizeof(s_IntradayRecord) != 0) {
+            cout << "Data set: " << path.filename() << " does not have even number of records." << endl;
+            return -1;
+        }
+        const size_t num_recs = size / sizeof(s_IntradayRecord);
+
+        s_IntradayRecord record;
+        const SCDateTime start_dt{ start_year, start_month, 9, 22, 0, 0 };
+        const SCDateTime end_dt{ end_year, end_month, 9, 22, 0, 0 };
+
+        int prev_date{ -1 };
+        int prev_time{ -1 };
+        for (int i = 0; i < num_recs; i++) {
+            datafile.read((char*)&record, sizeof(s_IntradayRecord));
+            if (datafile.bad()) {
+                cout << "Unable to to read data file record: " << i << endl;
+                return -1;
+            }
+            if (record.DateTime < start_dt)
+                continue;
+            if (record.DateTime >= end_dt)
+                break;
+
+            // throw away data between 4:30pm (8:30p UTC, 2030 UTC) and 6pm
+            constexpr int utc2030{ 21 * 60 * 60 + 30 * 60 };
+            constexpr int utc2200{ 21 * 60 * 60 + 30 * 60 };
+            const int iTime = record.DateTime.GetTimeInSeconds();
+            if (iTime > utc2030 or iTime < utc2200)
+                continue;
+            const int iDate = record.DateTime.GetDate();
+
+            // if this is first tick of new second, write it to output file
+            if (iDate == prev_date and iTime == prev_time)
+                continue;
+
+            prev_date = iDate;
+            prev_time = iTime;
+        }
+
 #if 0
-	size_t n{ 0 };
-	for(; n<num_recs; n++) {
-		datafile.read((char*)&records[n], sizeof(s_IntradayRecord));
-		if (datafile.bad()) {
-			cout << "Unable to to read data file header: " << datafile_fullfn << endl;
-			return -1;
-		}
-	}
+        size_t n{ 0 };
+        for (; n < num_recs; n++) {
+            datafile.read((char*)&records[n], sizeof(s_IntradayRecord));
+            if (datafile.bad()) {
+                cout << "Unable to to read data file header: " << datafile_fullfn << endl;
+                return -1;
+            }
+        }
 #endif
+    }
 
-	// remove unneeded data at beginning and end of scid dataset.
-	// I only want data from the 9th of the first month 3 months prior to the settlement month
-	// So, for instance, for the 'U' contract, which settles in September, I only want data from June 9th at 6pm EST
-	//  unitl September 9th, right before 6pm EST. Note: 6pm EST is 2200 UTC
-
-	// find first element on or after  start date/time: 9 June 2021 6pm (22:00:00 UTC or 6pm EST)
-	s_IntradayRecord abc;
-	static const SCDateTime startDateTime{ 2021, JUNE, 9, 22, 0, 0 };
-	auto iterator = ranges::find_if(records, [](auto r)->bool {return r.DateTime >= startDateTime;});
-	if (iterator == end(records)) {
-		cout << "Could not find first record" << endl;
-		return -1;
-	}
-	auto num_elements_to_remove = std::distance(begin(records), iterator);
-
-	abc = *iterator;
-	int yy, mm, dd, hh, minute, sec;
-	abc.DateTime.GetDateTimeYMDHMS(yy, mm, dd, hh, minute, sec);
-
-	// remove all data before start date
-	records.erase(begin(records), iterator);
-
-	// find first element after end date/time: 9 Sep 2021 6pm
-	static const SCDateTime endDateTime{ 2021, SEPTEMBER, 9, 22, 0, 0 };
-	iterator = ranges::find_if(records, [](auto r)->bool {return r.DateTime >= endDateTime; });
-	if (iterator == end(records)) {
-	num_elements_to_remove = std::distance(iterator, end(records));
-	records.erase(iterator, end(records));
-
-	auto c = f(4, 5);
-	auto a = sizeof(s_IntradayFileHeader);
-	cout << "Hello CMake." << endl;
-	return 0;
+    return 0;
 }
