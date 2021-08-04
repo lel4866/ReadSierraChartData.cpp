@@ -46,8 +46,9 @@ int main()
         const char futures_code = stem[2];
         if (!IsValidFuturesMonthCode(futures_code))
             continue;
-        int start_month, start_year, end_year;
+        int start_month = JANUARY;
         int end_month = GetMonthFromFuturesCode(futures_code);
+        int start_year, end_year;
         start_year = end_year = 2000 + atoi(stem.c_str() + 3);
         switch (futures_code) {
         case 'H':
@@ -72,17 +73,17 @@ int main()
         size_t size = datafile.tellg();
         datafile.seekg(0, ios::beg); // reset pointer to beginning of file
 
-        // read SierraChart scid file header
+        // read SierraChart .scid file header
         s_IntradayFileHeader header;
         datafile.read((char*)&header, sizeof(header));
         if (datafile.bad()) {
             cout << "Unable to to read data file header: " << path.filename() << endl;
             return -1;
         }
-        size -= sizeof(header);
+        size -= sizeof(header); // set size to just that used for data
 
         if (size % sizeof(s_IntradayRecord) != 0) {
-            cout << "Data set: " << path.filename() << " does not have even number of records." << endl;
+            cout << "Data set: " << path.filename() << " does not have even number of data records." << endl;
             return -1;
         }
         const size_t num_recs = size / sizeof(s_IntradayRecord);
