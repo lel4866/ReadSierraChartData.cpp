@@ -43,13 +43,14 @@ int main()
             continue;
         if (stem.length() != 5)
             continue;
-        const char futures_code = stem[2];
+        const char futures_code = toupper(stem[2]);
         if (!IsValidFuturesMonthCode(futures_code))
             continue;
         int start_month = JANUARY;
         int end_month = GetMonthFromFuturesCode(futures_code);
         int start_year, end_year;
-        start_year = end_year = 2000 + atoi(stem.c_str() + 3);
+        const string futures_two_digit_year = stem.substr(3, 2);
+        start_year = end_year = 2000 + atoi(futures_two_digit_year.c_str());
         switch (futures_code) {
         case 'H':
             start_month = 12;
@@ -61,11 +62,11 @@ int main()
             break;
         }
 
-        // open file and position 
+        // open file and position to end of file (ios::ate) so we can compute size
         ifstream datafile;
-        datafile.open(path.filename().string(), ios::in | ios::binary | ios::ate);
+        datafile.open(path, ios::in | ios::binary | ios::ate);
         if (!datafile.is_open()) {
-            cout << "Unable to open data file: " << path.filename() << endl;
+            cout << "Unable to open data file: " << path << endl;
             return -1;
         }
 
@@ -88,12 +89,20 @@ int main()
         }
         const size_t num_recs = size / sizeof(s_IntradayRecord);
 
-        s_IntradayRecord record;
+        // create CSV file. Name is {futures_root }{futures_code}{2 digit year}.csv
+        const string out_path = datafile_outdir + futures_root + futures_code + futures_two_digit_year + ".csv";
+        ofstream csv_ostream(out_path);
+
+        // output header
+        csv_ostream << "Date,Time,Price" << endl;
+
+         // only keep ticks between start_date and end_date
         const SCDateTime start_dt{ start_year, start_month, 9, 22, 0, 0 };
         const SCDateTime end_dt{ end_year, end_month, 9, 22, 0, 0 };
 
         int prev_date{ -1 };
         int prev_time{ -1 };
+        s_IntradayRecord record;
         for (int i = 0; i < num_recs; i++) {
             datafile.read((char*)&record, sizeof(s_IntradayRecord));
             if (datafile.bad()) {
@@ -109,17 +118,25 @@ int main()
             constexpr int utc2030{ 21 * 60 * 60 + 30 * 60 };
             constexpr int utc2200{ 21 * 60 * 60 + 30 * 60 };
             const int iTime = record.DateTime.GetTimeInSeconds();
-            if (iTime > utc2030 or iTime < utc2200)
+            if (iTime > utc2030 and iTime < utc2200)
                 continue;
             const int iDate = record.DateTime.GetDate();
 
+            // only keep one tick per second
             // if this is first tick of new second, write it to output file
             if (iDate == prev_date and iTime == prev_time)
                 continue;
 
+            // write tick to CSV file
+            int year{ 0 }, month{ 0 }, day{ 0 }, hour{ 0 }, minute{ 0 }, second{ 0 };
+            record.DateTime.GetDateTimeYMDHMS(year, month, day, hour, minute, second);
+            csv_ostream << format("{0:02}/{1:02}/{2},{3:02}:{4:02}:{5:02},{6}\n", month, day, year, hour, minute, second, record.Close);
+            //csv_ostream << line << endl;
+
             prev_date = iDate;
             prev_time = iTime;
         }
+        csv_ostream.close();
 
 #if 0
         size_t n{ 0 };
