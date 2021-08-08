@@ -51,10 +51,12 @@ int main()
         if (stem.length() < 5)
             continue;
 
+        // start thread to process an .scid file
         cout << "processing: " << path.filename() << endl;
         threads.emplace_back(processScidFile, futures_root, path, datafile_outdir);
     }
 
+    // wait for all threads to complete
     for (auto&& thread : threads)
         thread.join();
 
