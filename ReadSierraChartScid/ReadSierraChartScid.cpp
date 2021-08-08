@@ -11,6 +11,7 @@
 #include "ReadSierraChartScid.h"
 
 using namespace std;
+static SCDateTime getUTCTimeFromLocalTime(int year, int month, int day, int hour, int min, int sec);
 
 // C++20 test
 template<typename T>
@@ -29,6 +30,7 @@ int main()
     const string datafile_outdir{ "C:/Users/lel48/SierraChartData/" };
     const string datafile_fn{ "ESU21-CME.scid" };
     const string futures_root{ "ES" };
+    const chrono::time_zone* curzone = chrono::current_zone();
 
     // get .scid files in datafile_dir
     for (const filesystem::directory_entry& dir_entry : filesystem::directory_iterator(datafile_dir)) {
@@ -47,8 +49,8 @@ int main()
         const char futures_code = toupper(stem[2]);
         if (!IsValidFuturesMonthCode(futures_code))
             continue;
-        int start_month = JANUARY;
         int end_month = GetMonthFromFuturesCode(futures_code);
+        int start_month = end_month - 3;
         int start_year, end_year;
         const string futures_two_digit_year = stem.substr(3, 2);
         start_year = end_year = 2000 + atoi(futures_two_digit_year.c_str());
@@ -98,9 +100,8 @@ int main()
         csv_ostream << "Date,Time,Price" << endl;
 
          // only keep ticks between start_date and end_date
-        SCDateTime start_dt = getUTCTime(start_year, start_month, 9, 18, 0, 0); // specify ET
-        //const SCDateTime start_dt{ start_year, start_month, 9, 22, 0, 0 };
-        const SCDateTime end_dt{ end_year, end_month, 9, 22, 0, 0 };
+        SCDateTime start_dt = getUTCTimeFromLocalTime(start_year, start_month, 9, 18, 0, 0);
+        SCDateTime end_dt = getUTCTimeFromLocalTime(end_year, end_month, 9, 18, 0, 0);
 
         int prev_date{ -1 };
         int prev_time{ -1 };
@@ -155,20 +156,12 @@ int main()
     return 0;
 }
 
-SCDateTime getUTCTime(int year, int month, int day, int hour, int min, int sec) {
-    time_t now = time(nullptr);
-    std::tm tm_now = *std::localtime(&now);
-    int isdst = tm_now.tm_isdst;
-    std::tm tm{};
-    tm.tm_year = year;
-    tm.tm_mon = month;
-    tm.tm_mday = day;
-    tm.tm_hour = hour;
-    tm.tm_min = min;
-    tm.tm_sec = sec;
-    tm.tm_isdst = 0;
+SCDateTime getUTCTimeFromLocalTime(int year, int month, int day, int hour, int min, int sec) {
+    std::tm tm = {.tm_sec = sec, .tm_min  = min, .tm_hour = hour, .tm_mday = day, .tm_mon  = month, .tm_year = year-1900};
+    tm.tm_isdst = -1; // Use DST value from local time zone
     std::time_t t = std::mktime(&tm);
     std::tm utc = *std::gmtime(&t);
+    SCDateTime xxx(utc.tm_year, utc.tm_mon, utc.tm_mday, utc.tm_hour, utc.tm_min, utc.tm_sec);
     return SCDateTime(utc.tm_year, utc.tm_mon, utc.tm_mday, utc.tm_hour, utc.tm_min, utc.tm_sec);
 }
 
