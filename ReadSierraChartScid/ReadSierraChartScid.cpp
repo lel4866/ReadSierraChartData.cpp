@@ -44,6 +44,7 @@ int main()
         if (path.extension() != ".scid")
             continue;
 
+        // filename must start with futures_root and be 5 or more chars in length
         const string stem(path.stem().string());
         if (!stem.starts_with(futures_root))
             continue;
