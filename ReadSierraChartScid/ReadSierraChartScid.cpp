@@ -32,7 +32,6 @@ int main()
 {
     const string datafile_dir{ "C:/SierraChart/Data/" };
     const string datafile_outdir{ "C:/Users/lel48/SierraChartData/" };
-    const string datafile_fn{ "ESU21-CME.scid" };
     const string futures_root{ "ES" };
     const chrono::time_zone* curzone = chrono::current_zone();
 
