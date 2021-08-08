@@ -5,6 +5,7 @@
 #include "SierraChartFiles/scdatetime.h"
 #pragma warning( default : 26812 26451 6201 6385 6386)
 
+#include <ctime>
 #include <filesystem>
 #include <fstream>
 #include "ReadSierraChartScid.h"
@@ -41,7 +42,7 @@ int main()
         const string stem(path.stem().string());
         if (!stem.starts_with(futures_root))
             continue;
-        if (stem.length() != 5)
+        if (stem.length() < 5)
             continue;
         const char futures_code = toupper(stem[2]);
         if (!IsValidFuturesMonthCode(futures_code))
@@ -97,7 +98,8 @@ int main()
         csv_ostream << "Date,Time,Price" << endl;
 
          // only keep ticks between start_date and end_date
-        const SCDateTime start_dt{ start_year, start_month, 9, 22, 0, 0 };
+        SCDateTime start_dt = getUTCTime(start_year, start_month, 9, 18, 0, 0); // specify ET
+        //const SCDateTime start_dt{ start_year, start_month, 9, 22, 0, 0 };
         const SCDateTime end_dt{ end_year, end_month, 9, 22, 0, 0 };
 
         int prev_date{ -1 };
@@ -130,7 +132,7 @@ int main()
             // write tick to CSV file
             int year{ 0 }, month{ 0 }, day{ 0 }, hour{ 0 }, minute{ 0 }, second{ 0 };
             record.DateTime.GetDateTimeYMDHMS(year, month, day, hour, minute, second);
-            csv_ostream << format("{0:02}/{1:02}/{2},{3:02}:{4:02}:{5:02},{6}\n", month, day, year, hour, minute, second, record.Close);
+            csv_ostream << format("{0:02}/{1:02}/{2},{3:02}:{4:02}:{5:02},{6:.2f}\n", month, day, year, hour, minute, second, record.Close);
             //csv_ostream << line << endl;
 
             prev_date = iDate;
@@ -152,3 +154,21 @@ int main()
 
     return 0;
 }
+
+SCDateTime getUTCTime(int year, int month, int day, int hour, int min, int sec) {
+    time_t now = time(nullptr);
+    std::tm tm_now = *std::localtime(&now);
+    int isdst = tm_now.tm_isdst;
+    std::tm tm{};
+    tm.tm_year = year;
+    tm.tm_mon = month;
+    tm.tm_mday = day;
+    tm.tm_hour = hour;
+    tm.tm_min = min;
+    tm.tm_sec = sec;
+    tm.tm_isdst = 0;
+    std::time_t t = std::mktime(&tm);
+    std::tm utc = *std::gmtime(&t);
+    return SCDateTime(utc.tm_year, utc.tm_mon, utc.tm_mday, utc.tm_hour, utc.tm_min, utc.tm_sec);
+}
+
