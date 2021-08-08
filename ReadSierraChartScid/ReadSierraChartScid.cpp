@@ -15,18 +15,7 @@ using namespace std;
 
 void processScidFile(const string futures_root, const filesystem::path path, const string& datafile_outdir);
 std::tm* getLocalTimeFromtSCDateTime(const SCDateTime& utcTime);
-static SCDateTime getUTCTimeFromLocalTime(int year, int month, int day, int hour, int min, int sec);
-
-// C++20 test
-template<typename T>
-concept Addable = requires(T a, T b)
-{
-    a + b;
-};
-template<Addable T>
-T f(T a, T b) {
-    return a + b;
-}
+static SCDateTime getSCDateTimeFromLocalTime(int year, int month, int day, int hour, int min, int sec);
 
 int main()
 {
@@ -119,8 +108,8 @@ void processScidFile(const string futures_root, const filesystem::path path, con
     csv_ostream << "Date,Time,Price" << endl;
 
     // only keep ticks between start_date and end_date
-    SCDateTime start_dt = getUTCTimeFromLocalTime(start_year, start_month, 9, 18, 0, 0);
-    SCDateTime end_dt = getUTCTimeFromLocalTime(end_year, end_month, 9, 18, 0, 0);
+    SCDateTime start_dt = getSCDateTimeFromLocalTime(start_year, start_month, 9, 18, 0, 0);
+    SCDateTime end_dt = getSCDateTimeFromLocalTime(end_year, end_month, 9, 18, 0, 0);
 
     int prev_date{ -1 };
     int prev_time{ -1 };
@@ -168,7 +157,8 @@ void processScidFile(const string futures_root, const filesystem::path path, con
     csv_ostream.close();
 }
 
-SCDateTime getUTCTimeFromLocalTime(int year, int month, int day, int hour, int min, int sec) {
+// SCDateTime is UTC time
+SCDateTime getSCDateTimeFromLocalTime(int year, int month, int day, int hour, int min, int sec) {
     std::tm stm = {.tm_sec = sec, .tm_min  = min, .tm_hour = hour, .tm_mday = day, .tm_mon  = month-1, .tm_year = year-1900};
     stm.tm_isdst = -1; // Use DST value from local time zone
     std::time_t t = std::mktime(&stm);
@@ -177,6 +167,7 @@ SCDateTime getUTCTimeFromLocalTime(int year, int month, int day, int hour, int m
     return SCDateTime(utc->tm_year+1900, utc->tm_mon+1, utc->tm_mday+1, utc->tm_hour, utc->tm_min, utc->tm_sec);
 }
 
+// SCDateTime is UTC time
 std::tm* getLocalTimeFromtSCDateTime(const SCDateTime& utcTime) {
     time_t t = utcTime.ToUNIXTime();
     return std::localtime(&t);
