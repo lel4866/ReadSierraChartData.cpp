@@ -11,6 +11,7 @@
 #include "ReadSierraChartScid.h"
 
 using namespace std;
+std::tm* getLocalTimeFromtSCDateTime(const SCDateTime& utcTime);
 static SCDateTime getUTCTimeFromLocalTime(int year, int month, int day, int hour, int min, int sec);
 
 // C++20 test
@@ -99,7 +100,10 @@ int main()
         // output header
         csv_ostream << "Date,Time,Price" << endl;
 
-         // only keep ticks between start_date and end_date
+        // only keep ticks between start_date and end_date
+        //SCDateTime start_dt1 = getUTCTimeFromLocalTime(2019, 3, 9, 18, 0, 0);
+        //SCDateTime start_dt2 = getUTCTimeFromLocalTime(2019, 6, 9, 18, 0, 0);
+
         SCDateTime start_dt = getUTCTimeFromLocalTime(start_year, start_month, 9, 18, 0, 0);
         SCDateTime end_dt = getUTCTimeFromLocalTime(end_year, end_month, 9, 18, 0, 0);
 
@@ -112,18 +116,27 @@ int main()
                 cout << "Unable to to read data file record: " << i << endl;
                 return -1;
             }
+
+            // throw away data earlier than start date/time
             if (record.DateTime < start_dt)
                 continue;
+
+            // terminate loop on first data later than end date/time (assumes data is sorted)
             if (record.DateTime >= end_dt)
                 break;
 
-            // throw away data between 4:30pm (8:30p UTC, 2030 UTC) and 6pm
-            constexpr int utc2030{ 21 * 60 * 60 + 30 * 60 };
-            constexpr int utc2200{ 21 * 60 * 60 + 30 * 60 };
-            const int iTime = record.DateTime.GetTimeInSeconds();
-            if (iTime > utc2030 and iTime < utc2200)
+
+            // throw away Saturdays
+            std::tm* localTime = getLocalTimeFromtSCDateTime(record.DateTime); // get local time of current record
+            if(localTime->tm_wday == 6)
                 continue;
+
+            // throw away data between 4:30pm and 6pm ET
+            if ((localTime->tm_hour == 16 && localTime->tm_min >= 30) or localTime->tm_hour == 17)
+                continue;
+
             const int iDate = record.DateTime.GetDate();
+            const int iTime = record.DateTime.GetTimeInSeconds();
 
             // only keep one tick per second
             // if this is first tick of new second, write it to output file
@@ -131,10 +144,12 @@ int main()
                 continue;
 
             // write tick to CSV file
-            int year{ 0 }, month{ 0 }, day{ 0 }, hour{ 0 }, minute{ 0 }, second{ 0 };
-            record.DateTime.GetDateTimeYMDHMS(year, month, day, hour, minute, second);
-            csv_ostream << format("{0:02}/{1:02}/{2},{3:02}:{4:02}:{5:02},{6:.2f}\n", month, day, year, hour, minute, second, record.Close);
-            //csv_ostream << line << endl;
+            //int year{ 0 }, month{ 0 }, day{ 0 }, hour{ 0 }, minute{ 0 }, second{ 0 };
+            //record.DateTime.GetDateTimeYMDHMS(year, month, day, hour, minute, second);
+            //std::tm* local = getLocalTimeFromtSCDateTime(record.DateTime);
+
+            csv_ostream << format("{0:02}/{1:02}/{2},{3:02}:{4:02}:{5:02},{6:.2f}\n",
+                localTime->tm_mon+1, localTime->tm_mday+1, localTime->tm_year+1900, localTime->tm_hour, localTime->tm_min, localTime->tm_sec, record.Close);
 
             prev_date = iDate;
             prev_time = iTime;
@@ -157,11 +172,16 @@ int main()
 }
 
 SCDateTime getUTCTimeFromLocalTime(int year, int month, int day, int hour, int min, int sec) {
-    std::tm tm = {.tm_sec = sec, .tm_min  = min, .tm_hour = hour, .tm_mday = day, .tm_mon  = month, .tm_year = year-1900};
-    tm.tm_isdst = -1; // Use DST value from local time zone
-    std::time_t t = std::mktime(&tm);
-    std::tm utc = *std::gmtime(&t);
-    SCDateTime xxx(utc.tm_year, utc.tm_mon, utc.tm_mday, utc.tm_hour, utc.tm_min, utc.tm_sec);
-    return SCDateTime(utc.tm_year, utc.tm_mon, utc.tm_mday, utc.tm_hour, utc.tm_min, utc.tm_sec);
+    std::tm stm = {.tm_sec = sec, .tm_min  = min, .tm_hour = hour, .tm_mday = day, .tm_mon  = month-1, .tm_year = year-1900};
+    stm.tm_isdst = -1; // Use DST value from local time zone
+    std::time_t t = std::mktime(&stm);
+    std::tm* utc = std::gmtime(&t);
+    SCDateTime xxx(utc->tm_year+1900, utc->tm_mon+1, utc->tm_mday+1, utc->tm_hour, utc->tm_min, utc->tm_sec);
+    return SCDateTime(utc->tm_year+1900, utc->tm_mon+1, utc->tm_mday+1, utc->tm_hour, utc->tm_min, utc->tm_sec);
+}
+
+std::tm* getLocalTimeFromtSCDateTime(const SCDateTime& utcTime) {
+    time_t t = utcTime.ToUNIXTime();
+    return std::localtime(&t);
 }
 
