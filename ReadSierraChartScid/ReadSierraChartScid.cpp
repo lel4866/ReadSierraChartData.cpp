@@ -101,9 +101,6 @@ int main()
         csv_ostream << "Date,Time,Price" << endl;
 
         // only keep ticks between start_date and end_date
-        //SCDateTime start_dt1 = getUTCTimeFromLocalTime(2019, 3, 9, 18, 0, 0);
-        //SCDateTime start_dt2 = getUTCTimeFromLocalTime(2019, 6, 9, 18, 0, 0);
-
         SCDateTime start_dt = getUTCTimeFromLocalTime(start_year, start_month, 9, 18, 0, 0);
         SCDateTime end_dt = getUTCTimeFromLocalTime(end_year, end_month, 9, 18, 0, 0);
 
