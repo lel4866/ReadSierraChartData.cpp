@@ -144,10 +144,6 @@ int main()
                 continue;
 
             // write tick to CSV file
-            //int year{ 0 }, month{ 0 }, day{ 0 }, hour{ 0 }, minute{ 0 }, second{ 0 };
-            //record.DateTime.GetDateTimeYMDHMS(year, month, day, hour, minute, second);
-            //std::tm* local = getLocalTimeFromtSCDateTime(record.DateTime);
-
             csv_ostream << format("{0:02}/{1:02}/{2},{3:02}:{4:02}:{5:02},{6:.2f}\n",
                 localTime->tm_mon+1, localTime->tm_mday+1, localTime->tm_year+1900, localTime->tm_hour, localTime->tm_min, localTime->tm_sec, record.Close);
 
