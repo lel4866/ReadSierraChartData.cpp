@@ -6,12 +6,16 @@
 #pragma warning( default : 26812 26451 6201 6385 6386)
 
 #include <ctime>
-#include <filesystem>
+#include <istream>
+#include <ostream>
 #include <fstream>
 #include <thread>
+
+#include "ZLibCompressor.h"
 #include "ReadSierraChartScid.h"
 
 using namespace std;
+
 
 void processScidFile(const string futures_root, const filesystem::path path, const string& datafile_outdir);
 std::tm* getLocalTimeFromtSCDateTime(const SCDateTime& utcTime);
@@ -43,6 +47,9 @@ int main()
         // start thread to process an .scid file
         cout << "processing: " << path.filename() << endl;
         threads.emplace_back(processScidFile, futures_root, path, datafile_outdir);
+
+        // debug - just do 1 file
+        break;
     }
 
     // wait for all threads to complete
@@ -102,10 +109,12 @@ void processScidFile(const string futures_root, const filesystem::path path, con
 
     // create CSV file. Name is {futures_root }{futures_code}{2 digit year}.csv
     const string out_path = datafile_outdir + futures_root + futures_code + futures_two_digit_year + ".csv";
-    ofstream csv_ostream(out_path);
+
+    ZlibCompressor zlc(out_path);
 
     // output header
-    csv_ostream << "Date,Time,Price" << endl;
+    string csv_header{ "Date,Time,Price\n" };
+    zlc.save_line_compressed(csv_header);
 
     // only keep ticks between start_date and end_date
     SCDateTime start_dt = getSCDateTimeFromLocalTime(start_year, start_month, 9, 18, 0, 0);
@@ -148,13 +157,14 @@ void processScidFile(const string futures_root, const filesystem::path path, con
             continue;
 
         // write tick to CSV file
-        csv_ostream << format("{0:02}/{1:02}/{2},{3:02}:{4:02}:{5:02},{6:.2f}\n",
+        string csv = format("{0:02}/{1:02}/{2},{3:02}:{4:02}:{5:02},{6:.2f}\n",
             localTime->tm_mon + 1, localTime->tm_mday + 1, localTime->tm_year + 1900, localTime->tm_hour, localTime->tm_min, localTime->tm_sec, record.Close);
+
+        zlc.save_line_compressed(csv);
 
         prev_date = iDate;
         prev_time = iTime;
     }
-    csv_ostream.close();
 }
 
 // SCDateTime is UTC time
@@ -172,4 +182,5 @@ std::tm* getLocalTimeFromtSCDateTime(const SCDateTime& utcTime) {
     time_t t = utcTime.ToUNIXTime();
     return std::localtime(&t);
 }
+
 
