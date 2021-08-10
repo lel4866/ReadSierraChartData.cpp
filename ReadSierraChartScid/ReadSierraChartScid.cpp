@@ -49,7 +49,7 @@ int main()
         threads.emplace_back(processScidFile, futures_root, path, datafile_outdir);
 
         // debug - just do 1 file
-        // break;
+        break;
     }
 
     // wait for all threads to complete
@@ -113,8 +113,10 @@ void processScidFile(const string futures_root, const filesystem::path path, con
     ZlibCompressor zlc(out_path);
 
     // output header
-    string csv_header{ "Date,Time,Price\n" };
+    //string csv_header{ "Date,Time,Price\n" };
+    string csv_header{ "abcdefghi" };
     zlc.save_line_compressed(csv_header);
+    return;
 
     // only keep ticks between start_date and end_date
     SCDateTime start_dt = getSCDateTimeFromLocalTime(start_year, start_month, 9, 18, 0, 0);
