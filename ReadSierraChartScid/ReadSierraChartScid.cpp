@@ -49,7 +49,7 @@ int main()
         threads.emplace_back(processScidFile, futures_root, path, datafile_outdir);
 
         // debug - just do 1 file
-        break;
+        // break;
     }
 
     // wait for all threads to complete
@@ -107,8 +107,8 @@ void processScidFile(const string futures_root, const filesystem::path path, con
     }
     const size_t num_recs = size / sizeof(s_IntradayRecord);
 
-    // create CSV file. Name is {futures_root }{futures_code}{2 digit year}.csv
-    const string out_path = datafile_outdir + futures_root + futures_code + futures_two_digit_year + ".csv";
+    // create ,z file. Name is {futures_root }{futures_code}{2 digit year}.z
+    const string out_path = datafile_outdir + futures_root + futures_code + futures_two_digit_year + ".z";
 
     ZlibCompressor zlc(out_path);
 

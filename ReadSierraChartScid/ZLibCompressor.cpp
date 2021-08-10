@@ -27,7 +27,7 @@ ZlibCompressor::ZlibCompressor(const std::filesystem::path out_path_)
     strm.avail_out = CHUNK; // avail_out is # of available output bytes
     strm.next_out = outbuf;
 
-    csv_ostream.open(out_path);
+    z_ostream.open(out_path);
 }
 
 ZlibCompressor::~ZlibCompressor() {
@@ -35,10 +35,10 @@ ZlibCompressor::~ZlibCompressor() {
     int ret = deflate(&strm, Z_FINISH);
     assert(ret != Z_STREAM_ERROR);  /* state not clobbered */
     auto size = CHUNK - strm.avail_out;
-    csv_ostream.write((char*)outbuf, size);
+    z_ostream.write((char*)outbuf, size);
     deflateEnd(&strm);
 
-    csv_ostream.close();
+    z_ostream.close();
 }
 
 int ZlibCompressor::save_line_compressed(const string& in) {
@@ -59,7 +59,7 @@ int ZlibCompressor::save_line_compressed(const string& in) {
         //auto deflated_size = starting_out - strm.avail_out;
         // write size chars to stream
         auto size = CHUNK - strm.avail_out;
-        csv_ostream.write((char*)outbuf, size);
+        z_ostream.write((char*)outbuf, size);
     } while (strm.avail_out == 0);
 
     return ret;

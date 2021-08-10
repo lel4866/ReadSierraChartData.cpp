@@ -22,7 +22,7 @@ struct ZlibCompressor {
     bool is_constructed{ false };
     unsigned char* outbuf{ nullptr };
     std::filesystem::path out_path;
-    std::ofstream csv_ostream;
+    std::ofstream z_ostream;
 
     ZlibCompressor(const std::filesystem::path out_path);
     ~ZlibCompressor();
